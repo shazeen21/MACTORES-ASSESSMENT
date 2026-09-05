@@ -48,7 +48,11 @@ def test_unknown_tool_completes_rather_than_raising():
 
     assert run.status == "completed"
 
+def test_tool_error_completes_rather_than_raising():
+    run, deps = make_run(SCENARIOS["tool_error"])
+    run_agent(run, deps)
 
+    assert run.status == "completed"
 
 
 def test_never_finishes_fails_instead_of_hanging():
