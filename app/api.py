@@ -54,48 +54,23 @@ class StartRunBody(BaseModel):
 
 @router.post("/runs", response_model=Run, status_code=201)
 def start_run(body: StartRunBody) -> Run:
-    """TASK 5 — TODO(candidate): start a run and return the finished result.
+    task = store.get_task(body.task_id)
+    if task is None:
+        raise HTTPException(404, "task not found")
 
-    Small, but it's the piece that ties everything together — with this done you can drive your
-    agent from the interactive docs at /docs instead of only from pytest.
+    run = Run(id=_new_id("r"), task_id=task.id, autonomy=task.autonomy)
+    store.add_run(run)
 
-    What to do:
+    ws = Workspace(CONTACTS)
+    deps = AgentDeps(
+        model=MockModelClient(script_for(task.scenario)),
+        workspace=ws,
+        registry=build_registry(ws),
+        store=store,
+        settings=SETTINGS,
+    )
 
-      1. Look up the task with `store.get_task(body.task_id)`. If it doesn't exist, raise
-         `HTTPException(404, "task not found")`. Follow `get_task` above for the pattern.
-
-      2. Build the Run:
-             run = Run(id=_new_id("r"), task_id=task.id, autonomy=task.autonomy)
-         and register it with `store.add_run(run)`.
-
-      3. Build the dependencies. Give every run its OWN workspace, so one run's messages and
-         contact edits can't leak into another's:
-
-             ws = Workspace(CONTACTS)
-             deps = AgentDeps(
-                 model=MockModelClient(script_for(task.scenario)),
-                 workspace=ws,
-                 registry=build_registry(ws),
-                 store=store,
-                 settings=SETTINGS,
-             )
-
-         Note `build_registry(ws)` is built from that same workspace — the registry holds bound
-         methods, so a registry made from a different Workspace would write to the wrong world.
-
-      4. Call `run_agent(run, deps)` and return the run. Because this is synchronous, the loop has
-         finished by the time you return, so the response contains the whole trace: every step, the
-         effects, and the verdict.
-
-    Check it by hand once it works:
-        curl -s localhost:8000/api/v1/tasks -H 'content-type: application/json' \\
-          -d '{"goal":"follow up with Acme","scenario":"send_followup","autonomy":"autonomous",
-               "expected_effects":[{"tool":"send_message","match":{"contact_id":"c_1"}}]}'
-        curl -s localhost:8000/api/v1/runs -H 'content-type: application/json' \\
-          -d '{"task_id":"<the id you just got>"}'
-    """
-    raise HTTPException(501, "POST /runs not implemented — see TASK 5")
-
+    return run_agent(run, deps)
 
 @router.get("/runs/{run_id}", response_model=Run)
 def get_run(run_id: str) -> Run:
