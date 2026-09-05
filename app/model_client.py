@@ -77,32 +77,14 @@ class MockModelClient:
 def complete_with_retry(
     model: ModelClient, messages: list[dict], settings: Settings = SETTINGS
 ) -> str:
-    """TASK 4a — TODO(candidate): call the model, and survive a transient failure.
-
-    Networks and model providers are unreliable. Some failures are worth retrying and some are
-    not, and telling them apart is the whole skill here.
-
-    What to do:
-      - call `model.complete(messages)` and return its text on success.
-      - on ThrottleError: wait, then try again — up to `settings.model_max_retries` retries.
-        Sleep `settings.model_backoff_base_seconds * (2 ** attempt)` before each retry, where
-        `attempt` starts at 0. That doubling is called exponential backoff: if the provider is
-        overloaded, hammering it every 10ms makes things worse for everyone, so each wait is
-        longer than the last.
-      - if the retries run out, let the last ThrottleError propagate. Don't swallow it and don't
-        return None — the caller needs to know this failed.
-      - on FatalError (and any other exception): raise straight away, no retry.
-
-    Use `time.sleep` — this whole service is synchronous, there's no async here.
-
-    Test it by scripting the mock:
-        MockModelClient([ThrottleError("429"), ThrottleError("429"), '{"intent":"final","answer":"hi"}'])
-      → returns the JSON, and `model.calls == 3`
-        MockModelClient([FatalError("bad key"), '{"intent":"final","answer":"hi"}'])
-      → raises FatalError, and `model.calls == 1` (this is the assertion that proves you did NOT
-        retry the fatal error — a test that only checks "it raised" would pass even if you
-        retried three times first)
-
-    Write those two tests before you write the function.
-    """
-    raise NotImplementedError("complete_with_retry — see TASK 4a")
+    attempt = 0
+    while True:
+        try:
+            return model.complete(messages)
+        except ThrottleError:
+            if attempt >= settings.model_max_retries:
+                raise
+            time.sleep(settings.model_backoff_base_seconds * (2 ** attempt))
+            attempt += 1
+        except FatalError:
+            raise
